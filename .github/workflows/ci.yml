@@ -1,0 +1,179 @@
+name: CI
+
+# CI matrix gates every PR & main-branch push on:
+#   - backend tests       (PHPUnit, isolated SQLite, no real DB ever touched)
+#   - frontend lint       (eslint, ruleset shipped with eslint-config-next)
+#   - frontend typecheck  (tsc --noEmit)
+#   - frontend build      (next build) — surfaces runtime-shape regressions
+#   - prod guard          (env:assert-production-safety happy + red path)
+#
+# Jobs are independent so red signals stay localized; only `prod-guard`
+# depends on `backend` since it shares the same composer cache key.
+on:
+  push:
+    branches: [main, master, develop]
+  pull_request:
+    branches: [main, master, develop]
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  backend:
+    name: Backend tests (PHPUnit)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: backend
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.3'
+          extensions: bcmath, mbstring, sqlite3, pdo_sqlite, intl
+          coverage: none
+          tools: composer:v2
+
+      - name: Cache composer dependencies
+        uses: actions/cache@v4
+        with:
+          path: backend/vendor
+          key: ${{ runner.os }}-composer-${{ hashFiles('backend/composer.lock') }}
+          restore-keys: ${{ runner.os }}-composer-
+
+      - name: Install composer dependencies
+        run: composer install --no-progress --prefer-dist --no-interaction
+
+      - name: Bootstrap test environment file
+        # Tests load `.env.testing` when present; otherwise fall back to
+        # `.env`. `phpunit.xml` already pins DB_CONNECTION=sqlite + :memory:
+        # but Laravel still requires an env file to exist for `key:generate`.
+        run: |
+          cp .env.example .env
+          php artisan key:generate --ansi
+          php artisan jwt:secret --force --ansi
+
+      - name: Run PHPUnit
+        # The bootstrap script in tests/bootstrap.php aborts the suite if it
+        # ever sees a non-sqlite / non-`*_test` connection — defense against
+        # accidentally pointing CI at a real database.
+        # PHPUnit does not accept `--no-interaction`; passing it makes the
+        # suite exit immediately with "Unknown option" and fails CI.
+        run: php artisan test
+
+  frontend:
+    name: Frontend lint, typecheck, build
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: ESLint
+        run: npx eslint .
+
+      - name: TypeScript typecheck
+        run: npx tsc --noEmit
+
+      - name: Next.js build
+        # Build env vars are placeholders — the build step only exercises
+        # bundler/type-emit phases; no real network calls are made. CI
+        # secrets stay out of frontend logs by design. Variable names must
+        # match what the runtime code reads (see lib/server/backend.ts):
+        #   - BACKEND_API_URL       (proxy base URL, server-only)
+        #   - BACKEND_PROXY_SECRET  (shared header for backend ingress)
+        env:
+          NEXT_PUBLIC_API_BASE_URL: http://localhost:8000/api
+          BACKEND_API_URL: http://localhost:8000
+          BACKEND_PROXY_SECRET: ci-proxy-secret
+        run: npm run build
+
+  prod-guard:
+    name: Production safety guard
+    runs-on: ubuntu-latest
+    needs: backend
+    defaults:
+      run:
+        working-directory: backend
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.3'
+          extensions: bcmath, mbstring, sqlite3, pdo_sqlite, intl
+          coverage: none
+          tools: composer:v2
+
+      - name: Restore composer cache
+        uses: actions/cache@v4
+        with:
+          path: backend/vendor
+          key: ${{ runner.os }}-composer-${{ hashFiles('backend/composer.lock') }}
+          restore-keys: ${{ runner.os }}-composer-
+
+      - name: Install composer dependencies (if cache miss)
+        run: composer install --no-progress --prefer-dist --no-interaction
+
+      - name: Generate temporary APP_KEY for guard run
+        # The guard checks `APP_KEY === ''` only, but Laravel's bootstrap
+        # decodes the key when booting Encrypter. Generate a real one so the
+        # prod-env simulation doesn't crash on something unrelated.
+        run: |
+          echo "APP_KEY=base64:$(php -r 'echo base64_encode(random_bytes(32));')" >> "$GITHUB_ENV"
+
+      - name: Happy path - all invariants satisfied
+        env:
+          APP_ENV: production
+          APP_DEBUG: 'false'
+          JWT_SECRET: ci-prod-guard-jwt-secret
+          BACKEND_PROXY_SECRET: ci-prod-guard-proxy-secret
+        run: php artisan env:assert-production-safety
+
+      - name: Red path - APP_DEBUG=true must fail
+        # Boot itself (via AppServiceProvider::assertEnvironmentInvariants)
+        # is the primary line of defense; any non-zero exit code is success
+        # for this step.
+        env:
+          APP_ENV: production
+          APP_DEBUG: 'true'
+          JWT_SECRET: ci-prod-guard-jwt-secret
+          BACKEND_PROXY_SECRET: ci-prod-guard-proxy-secret
+        run: |
+          set +e
+          php artisan env:assert-production-safety
+          status=$?
+          if [ "$status" -eq 0 ]; then
+            echo "::error::Prod guard incorrectly accepted APP_DEBUG=true in production."
+            exit 1
+          fi
+
+      - name: Red path - missing BACKEND_PROXY_SECRET must fail
+        env:
+          APP_ENV: production
+          APP_DEBUG: 'false'
+          JWT_SECRET: ci-prod-guard-jwt-secret
+          BACKEND_PROXY_SECRET: ''
+        run: |
+          set +e
+          php artisan env:assert-production-safety
+          status=$?
+          if [ "$status" -eq 0 ]; then
+            echo "::error::Prod guard incorrectly accepted empty BACKEND_PROXY_SECRET in production."
+            exit 1
+          fi

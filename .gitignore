@@ -1,0 +1,24 @@
+/composer.phar
+/composer-setup.php
+**/composer.phar
+
+# Agent / IDE assistant scratch files
+**/AGENTS.md
+**/CLAUDE.md
+.cursor/
+
+# Secrets / environment files
+.env
+.env.*
+!.env.example
+backend/.env
+backend/.env.*
+!backend/.env.example
+frontend/.env
+frontend/.env.*
+!frontend/.env.example
+
+# Common build/vendor artifacts
+backend/vendor/
+frontend/node_modules/
+frontend/.next/

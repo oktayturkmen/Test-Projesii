@@ -1,0 +1,60 @@
+@import "tailwindcss";
+
+:root {
+  --background: #f4f7fb;
+  --foreground: #101828;
+  /* Tek vurgu: teal — butonlar, hero CTA, aktif nav vurgusu */
+  --brand: #0f766e;
+  --brand-hover: #115e59;
+  --brand-foreground: #ffffff;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --background: #070b14;
+    --foreground: #e8ecf6;
+    --brand: #2dd4bf;
+    --brand-hover: #14b8a6;
+    --brand-foreground: #042f2e;
+  }
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-brand: var(--brand);
+  --color-brand-hover: var(--brand-hover);
+  --color-brand-foreground: var(--brand-foreground);
+  --font-sans: var(--font-brand-sans), ui-sans-serif, system-ui, sans-serif;
+  --font-mono: "Courier New", Consolas, monospace;
+}
+
+body {
+  background: var(--background);
+  color: var(--foreground);
+}
+
+@keyframes currency-loading {
+  0% {
+    transform: translateX(-120%) scaleX(0.45);
+  }
+
+  55% {
+    transform: translateX(110%) scaleX(0.85);
+  }
+
+  100% {
+    transform: translateX(320%) scaleX(0.45);
+  }
+}
+
+.currency-loading-bar {
+  animation: currency-loading 1.15s ease-in-out infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .currency-loading-bar {
+    animation: none;
+    width: 100%;
+  }
+}

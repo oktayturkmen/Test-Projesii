@@ -80,12 +80,15 @@ Swagger UI: `http://127.0.0.1:8000/api/docs` (Bearer token ile deneme; storefron
 
 ## Çalıştırma (lokal)
 
-**Backend** — `backend/.env` ← `.env.example`
+**`backend/.env`** dosyasını **`.env.example`** üzerinden oluşturun.
+
+**MySQL:** `php artisan migrate` ve `db:seed` çalışmadan önce MySQL’in **çalışır** olması ve `.env` içindeki **`DB_HOST` / `DB_PORT` / `DB_DATABASE` / `DB_USERNAME` / `DB_PASSWORD`** değerleriyle eşleşmesi gerekir. Sunucu kapalıysa veya port dinlemiyorsa `SQLSTATE[HY000] [2002]` (bağlantı reddedildi) görürsünüz.
+XAMPP / yerel MySQL kullanıyorsanız servisi başlatın; veritabanı yoksa `e_ticaret` oluşturun ve şifreleri kendi kurulumunuza göre `.env`’e yazın.
 
 ```bash
 cd backend
-composer install
-copy .env.example .env
+cp .env.example .env
+composer install  # veya: php composer.phar install  /  .\composer.bat install
 php artisan key:generate
 php artisan jwt:secret --force
 php artisan migrate

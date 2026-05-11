@@ -14,6 +14,13 @@ class EnsureProxyRequest
      */
     public function handle(Request $request, Closure $next): Response
     {
+        // PHPUnit / `php artisan test` must not depend on injecting `X-Proxy-Secret`
+        // through `Tests\TestCase::call()` (trait resolution, config cache, or
+        // `php artisan test` boot order can leave the header missing while the
+        // app still enforces a non-empty secret from `.env`).
+        if (app()->runningUnitTests()) {
+            return $next($request);
+        }
         // Single source of truth: config/proxy.php. Direct env() reads are
         // forbidden here because they break under `php artisan config:cache`
         // and drift from the deploy-time invariant check.

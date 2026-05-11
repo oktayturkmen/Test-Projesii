@@ -14,15 +14,6 @@ class EnsureProxyRequest
      */
     public function handle(Request $request, Closure $next): Response
     {
-        // PHPUnit / `php artisan test` must not depend on injecting `X-Proxy-Secret`
-        // through `Tests\TestCase::call()`. Also, `Application::runningUnitTests()`
-        // is false when `app.env` drifts (e.g. `config:cache` built outside testing)
-        // even though the process is PHPUnit — `PHPUNIT_COMPOSER_INSTALL` is set
-        // by `vendor/phpunit/phpunit/phpunit` for every normal test run.
-        if (app()->runningUnitTests() || defined('PHPUNIT_COMPOSER_INSTALL')) {
-            return $next($request);
-        }
-
         // Single source of truth: config/proxy.php. Direct env() reads are
         // forbidden here because they break under `php artisan config:cache`
         // and drift from the deploy-time invariant check.
@@ -52,3 +43,4 @@ class EnsureProxyRequest
         return $next($request);
     }
 }
+

@@ -24,7 +24,44 @@ abstract class TestCase extends BaseTestCase
         parent::setUp();
 
         $this->assertSafeTestDatabase();
-        $this->attachTestProxySecretHeader();
+    }
+
+    /**
+     * Inject the proxy shared secret on every in-process HTTP request.
+     *
+     * `MakesHttpRequests::$defaultHeaders` is cleared in Laravel's tear-down; relying
+     * only on `withHeader()` in setUp is brittle. Under `proxy.only`, missing
+     * `X-Proxy-Secret` yields 403 before JWT runs — so we merge into `$server` here
+     * (same mechanism Symfony uses for incoming headers).
+     *
+     * @param  array<string, mixed>  $parameters
+     * @param  array<string, mixed>  $cookies
+     * @param  array<string, mixed>  $files
+     * @param  array<string, mixed>  $server
+     */
+    public function call($method, $uri, $parameters = [], $cookies = [], $files = [], $server = [], $content = null)
+    {
+        $secret = trim((string) config('proxy.secret', ''));
+
+        if ($secret !== '') {
+            $headerName = (string) config('proxy.header', 'X-Proxy-Secret');
+            $serverKey = $this->proxySecretServerVariableKey($headerName);
+
+            if (($server[$serverKey] ?? '') === '') {
+                $server[$serverKey] = $secret;
+            }
+        }
+
+        return parent::call($method, $uri, $parameters, $cookies, $files, $server, $content);
+    }
+
+    private function proxySecretServerVariableKey(string $headerName): string
+    {
+        $normalized = strtoupper(str_replace('-', '_', $headerName));
+
+        return str_starts_with($normalized, 'HTTP_')
+            ? $normalized
+            : 'HTTP_'.$normalized;
     }
 
     private function assertSafeTestDatabase(): void
@@ -50,3 +87,4 @@ abstract class TestCase extends BaseTestCase
         ));
     }
 }
+

@@ -24,6 +24,24 @@ abstract class TestCase extends BaseTestCase
         parent::setUp();
 
         $this->assertSafeTestDatabase();
+        $this->seedProxySecretIntoDefaultServerVariables();
+    }
+
+    /**
+     * Belt-and-suspenders with {@see call()}: merge the proxy secret into the
+     * default Symfony server bag so sub-requests still see X-Proxy-Secret even
+     * if a code path bypasses our overridden call() (rare) or $server omits it.
+     */
+    private function seedProxySecretIntoDefaultServerVariables(): void
+    {
+        $secret = trim((string) config('proxy.secret', ''));
+
+        if ($secret === '') {
+            return;
+        }
+
+        $headerName = (string) config('proxy.header', 'X-Proxy-Secret');
+        $this->serverVariables[$this->proxySecretServerVariableKey($headerName)] = $secret;
     }
 
     /**

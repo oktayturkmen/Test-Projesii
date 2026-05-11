@@ -44,6 +44,13 @@ jobs:
           key: ${{ runner.os }}-composer-${{ hashFiles('backend/composer.lock') }}
           restore-keys: ${{ runner.os }}-composer-
 
+      # Composer's post-autoload scripts run `php artisan package:discover`, which
+      # boots Laravel. Without a `.env`, Laravel defaults to `production` and
+      # `AppServiceProvider` refuses an empty `BACKEND_PROXY_SECRET` outside
+      # `testing`. Copy the template *before* `composer install`.
+      - name: Prepare .env for Composer scripts
+        run: cp .env.example .env
+
       - name: Install composer dependencies
         run: composer install --no-progress --prefer-dist --no-interaction
 
@@ -52,7 +59,6 @@ jobs:
         # `.env`. `phpunit.xml` already pins DB_CONNECTION=sqlite + :memory:
         # but Laravel still requires an env file to exist for `key:generate`.
         run: |
-          cp .env.example .env
           php artisan key:generate --ansi
           php artisan jwt:secret --force --ansi
 
@@ -126,6 +132,9 @@ jobs:
           path: backend/vendor
           key: ${{ runner.os }}-composer-${{ hashFiles('backend/composer.lock') }}
           restore-keys: ${{ runner.os }}-composer-
+
+      - name: Prepare .env for Composer scripts
+        run: cp .env.example .env
 
       - name: Install composer dependencies (if cache miss)
         run: composer install --no-progress --prefer-dist --no-interaction

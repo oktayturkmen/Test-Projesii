@@ -2,6 +2,7 @@
 
 namespace Tests;
 
+use App\Http\Middleware\EnsureProxyRequest;
 use Illuminate\Foundation\Testing\TestCase as BaseTestCase;
 use Illuminate\Support\Facades\DB;
 
@@ -24,6 +25,9 @@ abstract class TestCase extends BaseTestCase
         parent::setUp();
 
         $this->assertSafeTestDatabase();
+        // Replace `EnsureProxyRequest` in the container so HTTP tests never depend
+        // on `X-Proxy-Secret` / env merge (CI-safe; `Pipeline` resolves middleware via `make()`).
+        $this->withoutMiddleware([EnsureProxyRequest::class]);
         $this->seedProxySecretIntoDefaultServerVariables();
     }
 

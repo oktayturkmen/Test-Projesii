@@ -29,15 +29,15 @@
             test suite then targets whatever DB_CONNECTION/.env points to,
             and `php artisan test` truncates real users, orders, etc.
         -->
-        <env name="DB_CONNECTION" value="sqlite"/>
-        <env name="DB_DATABASE" value=":memory:"/>
+        <env name="DB_CONNECTION" value="sqlite" force="true"/>
+        <env name="DB_DATABASE" value=":memory:" force="true"/>
         <!--
-            Deterministic shared secret for the test process. An empty attribute
-            is easy for runners / Dotenv merge to treat as "unset", which leaves
-            BACKEND_PROXY_SECRET from the shell or .env and yields 403 on every
-            proxied route. Tests\TestCase injects this header on every request.
+            Deterministic shared secret for the test process. `force="true"`
+            overrides a pre-set OS env (CI / local shells). `tests/bootstrap.php`
+            pins the same value before Laravel boots. Tests\TestCase injects the
+            matching `X-Proxy-Secret` header on every request.
         -->
-        <env name="BACKEND_PROXY_SECRET" value="__PHPUNIT_BACKEND_PROXY_SECRET__"/>
+        <env name="BACKEND_PROXY_SECRET" value="__PHPUNIT_BACKEND_PROXY_SECRET__" force="true"/>
         <env name="MAIL_MAILER" value="array"/>
         <env name="PULSE_ENABLED" value="false"/>
         <env name="QUEUE_CONNECTION" value="sync"/>

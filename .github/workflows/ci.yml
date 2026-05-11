@@ -68,6 +68,10 @@ jobs:
         # accidentally pointing CI at a real database.
         # PHPUnit does not accept `--no-interaction`; passing it makes the
         # suite exit immediately with "Unknown option" and fails CI.
+        # Keep BACKEND_PROXY_SECRET aligned with phpunit.xml + bootstrap.php so
+        # `EnsureProxyRequest` never sees a different secret than the test client.
+        env:
+          BACKEND_PROXY_SECRET: __PHPUNIT_BACKEND_PROXY_SECRET__
         run: php artisan test
 
   frontend:

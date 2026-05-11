@@ -1,6 +1,17 @@
 <?php
 
 /**
+ * Must match `BACKEND_PROXY_SECRET` in `phpunit.xml` (and the CI workflow).
+ * Pinning here overwrites any value inherited from the shell or from `.env`
+ * before Laravel boots, so `config('proxy.secret')` and the in-request
+ * `X-Proxy-Secret` injection in `Tests\TestCase` always agree.
+ */
+$__phpunitBackendProxySecret = '__PHPUNIT_BACKEND_PROXY_SECRET__';
+putenv('BACKEND_PROXY_SECRET='.$__phpunitBackendProxySecret);
+$_ENV['BACKEND_PROXY_SECRET'] = $__phpunitBackendProxySecret;
+$_SERVER['BACKEND_PROXY_SECRET'] = $__phpunitBackendProxySecret;
+
+/**
  * Test bootstrap — runs BEFORE any test class is loaded.
  *
  * Purpose: refuse to run the suite if the active database connection is
